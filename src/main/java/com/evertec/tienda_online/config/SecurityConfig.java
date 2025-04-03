@@ -11,39 +11,40 @@ import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.core.userdetails.UserDetailsService;
 
-import org.springframework.security.crypto.password.NoOpPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+
+import static org.springframework.security.config.Customizer.withDefaults;
 
 @Configuration
 public class SecurityConfig {
 
-    // Seguridad de rutas
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http.csrf().disable() // útil para Postman, pero en producción deberías usarlo con cuidado
+        http
+            .csrf(csrf -> csrf.disable()) 
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/**").authenticated() // protege tus APIs
+                .requestMatchers("/api/**").authenticated()
                 .anyRequest().permitAll()
             )
-            .httpBasic(); // habilita autenticación básica
+            .httpBasic(withDefaults()); 
 
         return http.build();
     }
 
-    // Usuario en memoria
     @Bean
-    public UserDetailsService users() {
+    public UserDetailsService users(PasswordEncoder passwordEncoder) {
         UserDetails user = User
                 .withUsername("user")
-                .password("admin123")
+                .password(passwordEncoder.encode("admin123"))
                 .roles("USER")
                 .build();
         return new InMemoryUserDetailsManager(user);
     }
 
-    // Permitir contraseñas sin encriptar (para pruebas)
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return NoOpPasswordEncoder.getInstance();
+        return new BCryptPasswordEncoder();
     }
 }

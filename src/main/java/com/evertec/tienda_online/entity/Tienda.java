@@ -2,6 +2,8 @@ package com.evertec.tienda_online.entity;
 
 import jakarta.persistence.*;
 import lombok.*;
+
+import java.sql.Timestamp;
 import java.util.UUID;
 
 @Entity
@@ -22,5 +24,5 @@ public class Tienda {
     private String telefono;
 
     @Column(name = "creado_en", updatable = false, insertable = false)
-    private java.sql.Timestamp creadoEn;
+    private Timestamp creadoEn;
 }

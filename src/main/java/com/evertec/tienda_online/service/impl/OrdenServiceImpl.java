@@ -30,7 +30,7 @@ public class OrdenServiceImpl implements OrdenService {
     private final ProductoRepository productoRepo;
 
     public OrdenServiceImpl(OrdenRepository ordenRepo, ClienteRepository clienteRepo,
-            TiendaRepository tiendaRepo, ProductoRepository productoRepo) {
+                            TiendaRepository tiendaRepo, ProductoRepository productoRepo) {
         this.ordenRepo = ordenRepo;
         this.clienteRepo = clienteRepo;
         this.tiendaRepo = tiendaRepo;
@@ -41,9 +41,9 @@ public class OrdenServiceImpl implements OrdenService {
     @Transactional
     public Orden crearOrden(OrdenDTO dto) {
         Cliente cliente = clienteRepo.findById(dto.getClienteId())
-                .orElseThrow(() -> new RuntimeException("Cliente no existe"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Cliente no existe"));
         Tienda tienda = tiendaRepo.findById(dto.getTiendaId())
-                .orElseThrow(() -> new RuntimeException("Tienda no existe"));
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Tienda no existe"));
 
         Orden orden = Orden.builder()
                 .cliente(cliente)
@@ -54,14 +54,13 @@ public class OrdenServiceImpl implements OrdenService {
 
         List<OrdenDetalle> detalles = dto.getDetalles().stream().map(d -> {
             Producto producto = productoRepo.findById(d.getProductoId())
-                    .orElseThrow(() -> new RuntimeException("Producto no existe"));
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Producto no existe"));
 
             if (producto.getStock() < d.getCantidad()) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
                         "Stock insuficiente para el producto: " + producto.getNombre());
             }
 
-            // Descontar stock
             producto.setStock(producto.getStock() - d.getCantidad());
             productoRepo.save(producto);
 
@@ -74,29 +73,45 @@ public class OrdenServiceImpl implements OrdenService {
         }).toList();
 
         orden.setDetalles(detalles);
-
         return ordenRepo.save(orden);
     }
 
     @Override
     public Orden obtenerPorId(UUID id) {
-        return ordenRepo.findById(id).orElse(null);
+        return ordenRepo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Orden no encontrada"));
     }
 
     @Override
     public List<Orden> listarPorCliente(UUID clienteId) {
+        boolean clienteExiste = clienteRepo.existsById(clienteId);
+        
+        if (!clienteExiste) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Cliente no encontrado");
+        }
+    
         return ordenRepo.findByClienteId(clienteId);
     }
-
     @Override
     public Orden actualizarEstado(UUID id, String nuevoEstado) {
-        Orden orden = ordenRepo.findById(id).orElseThrow();
+        Orden orden = ordenRepo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Orden no encontrada"));
         orden.setEstado(nuevoEstado);
         return ordenRepo.save(orden);
     }
 
     @Override
+    @Transactional
     public void cancelarOrden(UUID id) {
-        ordenRepo.deleteById(id);
+        Orden orden = ordenRepo.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Orden no encontrada"));
+
+        for (OrdenDetalle detalle : orden.getDetalles()) {
+            Producto producto = detalle.getProducto();
+            producto.setStock(producto.getStock() + detalle.getCantidad());
+            productoRepo.save(producto);
+        }
+
+        ordenRepo.delete(orden);
     }
 }
